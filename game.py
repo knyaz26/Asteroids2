@@ -23,6 +23,7 @@ class Game:
 		self.screen_height = screen_height
 
 	def startup(self):
+
 		pr.init_audio_device()
 
 		image = pr.load_image("assets/sprite-0004.png")
@@ -48,12 +49,15 @@ class Game:
 
 	def update(self):
 		if pr.is_key_down(pr.KEY_LEFT):
-			self.player.heading -= 5.0
+			self.player.heading -= 4.0
 		elif pr.is_key_down(pr.KEY_RIGHT):
-			self.player.heading += 5.0
+			self.player.heading += 4.0
 		elif pr.is_key_down(pr.KEY_UP):
-			if self.player.acceleration < 1.0:
-				self.player.acceleration += 0.03
+			if self.player.acceleration < 0.6:
+				self.player.acceleration += 0.02
+		elif pr.is_key_down(pr.KEY_DOWN):
+			if self.player.acceleration > 0.01:
+				self.player.acceleration -= 0.01
 
 		self.player.speed.x = math.cos(np.deg2rad(self.player.heading)) * 6.0
 		self.player.speed.y = math.sin(np.deg2rad(self.player.heading)) * 6.0
@@ -86,6 +90,44 @@ class Game:
 			elif meteor.position.y < 0.0:
 				meteor.position.y = self.screen_height
 
+		if (pr.is_mouse_button_pressed(pr.MOUSE_BUTTON_LEFT) or pr.is_key_pressed(pr.KEY_SPACE)):
+			shot = Entity()
+			shot.active = True 
+			shot.position.x = copy(self.player.position.x)
+			shot.position.y = copy(self.player.position.y)
+			shot.heading = copy(self.player.heading)
+			shot.acceleration = 1.0
+			shot.speed.x = math.cos(np.deg2rad(self.player.heading)) * 10.0
+			shot.speed.y = math.sin(np.deg2rad(self.player.heading)) * 10.0
+			self.shots.append(shot)
+			pr.play_sound(self.resources[ResourceType.SOUND_LAZER_SHOOT])
+
+		for shot in self.shots:
+			if shot.active:
+				shot.position.x += shot.speed.x * shot.acceleration
+				shot.position.y += shot.speed.y * shot.acceleration
+				if shot.position.x > self.screen_width or shot.position.x < 0:
+					shot.active = False 
+				elif shot.position.y > self.screen_height or shot.position.y < 0:
+					shot.active = False
+
+		for shot in self.shots:
+			if shot.active:
+				for meteor in self.meteors:
+					texture = ResourceType(meteor.type)
+					if pr.check_collision_circles(shot.position, 1, meteor.position, self.resources[texture].width // 2):
+						meteor.active = False 
+						shot.active = False 
+						pr.play_sound(self.resources[ResourceType.SOUND_LAZER_EXPLOSION])
+						break
+
+		active_shots = filter(lambda x : x.active, self.shots)
+		self.shots = list(active_shots)
+
+		active_meteors = filter(lambda x : x.active, self.meteors)
+		self.meteors = list(active_meteors)
+
+
 	def render(self):
 
 		for meteor in self.meteors:
@@ -98,6 +140,13 @@ class Game:
 				meteor.heading,
 				pr.WHITE
 				)
+
+		for shot in self.shots:
+			pr.draw_circle(
+				int(shot.position.x),
+				int(shot.position.y),
+				2.0,
+				pr.BLUE)
 
 		pr.draw_texture_pro(
 			self.resources[ResourceType.TEXTURE_PLAYER],
